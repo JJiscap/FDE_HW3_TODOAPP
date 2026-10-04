@@ -1,0 +1,53 @@
+# CI (continuous integration): GitHub runs these checks automatically so a
+# broken change is caught before it is merged, not after.
+#
+# When it runs:
+#   - on every pull request (the checks appear at the bottom of the PR page)
+#   - on every push to main (so main is always known-good)
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# If you push again while a run is still going on the same branch, cancel the
+# old run: only the newest commit matters.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: these jobs only need to read the code.
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Lint, typecheck, test, build
+    # A fresh Ubuntu virtual machine, created for this run and thrown away after.
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Download the repo's code onto the machine.
+      - uses: actions/checkout@v4
+
+      # 2. Install Node. The version comes from .nvmrc (22), so CI, Vercel and
+      #    Docker all use the same one. "cache: npm" reuses downloaded packages
+      #    between runs to save time.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # 3. Install dependencies exactly as pinned in package-lock.json
+      #    ("ci" fails if the lock file and package.json disagree).
+      - run: npm ci
+
+      # 4. The checks. The first one that fails turns the run red.
+      - name: Lint (code style and common mistakes)
+        run: npm run lint
+      - name: Typecheck (TypeScript)
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Build (can the app be compiled for production?)
+        run: npm run build
