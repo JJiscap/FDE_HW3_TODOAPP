@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# builds
+.next/
+out/
+coverage/
+
+# secrets: never commit real env files (the template is allowed)
+.env*
+!.env.example
+
+# local databases and OS noise
+*.db
+.DS_Store
