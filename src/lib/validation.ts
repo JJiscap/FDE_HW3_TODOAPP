@@ -1,5 +1,7 @@
 export const USERNAME_MIN_LENGTH = 3;
 export const USERNAME_MAX_LENGTH = 20;
+/** Reserved (RFC 6761) domain for synthetic login emails. See docs/adr/0001. */
+export const LOGIN_EMAIL_DOMAIN = "todoapp.invalid";
 export const PASSWORD_MIN_LENGTH = 8;
 export const TASK_TITLE_MIN_LENGTH = 1;
 export const TASK_TITLE_MAX_LENGTH = 200;
@@ -57,6 +59,19 @@ export function validateTaskTitle(raw: string): TaskTitleResult {
     length: size,
     remaining: TASK_TITLE_MAX_LENGTH - size,
   };
+}
+
+/**
+ * The synthetic email Supabase Auth logs a Username in with (docs/adr/0001).
+ * Takes the normalised Username (validateUsername(...).value) and throws on
+ * anything else, so a malformed value can never reach the auth service.
+ */
+export function usernameToLoginEmail(username: string): string {
+  const result = validateUsername(username);
+  if (!result.valid || result.value !== username) {
+    throw new Error("Invalid Username: cannot build a login email");
+  }
+  return `${username}@${LOGIN_EMAIL_DOMAIN}`;
 }
 
 export function validateUsername(raw: string): FieldResult {

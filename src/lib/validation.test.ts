@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  LOGIN_EMAIL_DOMAIN,
+  usernameToLoginEmail,
   validatePassword,
   validateTaskTitle,
   validateUsername,
@@ -93,6 +95,37 @@ describe("validateUsername", () => {
         expect(ruleById(result, "length").met).toBe(false);
       }
     });
+  });
+});
+
+describe("usernameToLoginEmail", () => {
+  it("maps a Username to its synthetic login email (ADR 0001)", () => {
+    expect(usernameToLoginEmail("alice")).toBe("alice@todoapp.invalid");
+    expect(usernameToLoginEmail("a_1")).toBe("a_1@todoapp.invalid");
+  });
+
+  it("exposes the domain as a single named constant", () => {
+    expect(LOGIN_EMAIL_DOMAIN).toBe("todoapp.invalid");
+  });
+
+  it("accepts the normalised value from validateUsername", () => {
+    const { value } = validateUsername("  Alice ");
+    expect(usernameToLoginEmail(value)).toBe("alice@todoapp.invalid");
+  });
+
+  it.each([
+    ["empty", ""],
+    ["too short", "ab"],
+    ["too long", "a".repeat(21)],
+    ["not normalised (uppercase)", "Alice"],
+    ["not normalised (surrounding space)", " alice"],
+    ["contains @", "ali@ce"],
+    ["already an email", "alice@todoapp.invalid"],
+    ["contains a dot", "ali.ce"],
+    ["contains a hyphen", "ali-ce"],
+    ["non-ASCII", "alicé"],
+  ])("refuses an invalid Username: %s", (_name, username) => {
+    expect(() => usernameToLoginEmail(username)).toThrow(/invalid username/i);
   });
 });
 
