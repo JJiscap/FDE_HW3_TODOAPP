@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { listTasks, type Task } from "@/lib/tasks";
 import { logout } from "./actions";
+import AddTaskForm from "./add-task-form";
 
 // A server component: it runs on the server for each request, so it can read
 // the session cookies and ask the database who the signed-in User is.
@@ -25,8 +27,20 @@ export default async function Home() {
     .eq("id", user.id)
     .maybeSingle();
 
+  // Fetch the User's Tasks, newest first. Row Level Security means this can
+  // only ever return their own. If the database fails we show a friendly
+  // message instead of letting the whole page crash.
+  let tasks: Task[] = [];
+  let tasksFailed = false;
+  try {
+    tasks = await listTasks(supabase);
+  } catch (error) {
+    console.error("Could not load Tasks:", error);
+    tasksFailed = true;
+  }
+
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center gap-4 px-6 py-16">
+    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-4 px-4 py-10 sm:px-6 sm:py-16">
       <h1 className="text-3xl font-semibold tracking-tight">To-do app</h1>
       <p className="text-zinc-600">
         {profile ? (
@@ -47,6 +61,40 @@ export default async function Home() {
           Log out
         </button>
       </form>
+
+      <hr className="border-zinc-200" />
+
+      <AddTaskForm />
+
+      <section aria-labelledby="tasks-heading" className="flex flex-col gap-2">
+        <h2 id="tasks-heading" className="text-xl font-semibold">
+          Your Tasks
+        </h2>
+        {tasksFailed ? (
+          <p role="alert" className="text-red-600">
+            We couldn&apos;t load your Tasks. Please refresh the page to try
+            again.
+          </p>
+        ) : tasks.length === 0 ? (
+          <p className="text-zinc-600">No Tasks yet. Add your first one above.</p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-zinc-200 rounded-lg border border-zinc-200">
+            {tasks.map((task) => (
+              <li
+                key={task.id}
+                // break-words so a long title wraps instead of widening the
+                // page. A Completed Task is struck through (the controls to
+                // complete one come in a later ticket).
+                className={`px-3 py-2 break-words ${
+                  task.completed ? "text-zinc-500 line-through" : ""
+                }`}
+              >
+                {task.title}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </main>
   );
 }
