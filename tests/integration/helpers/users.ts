@@ -38,7 +38,12 @@ function randomUsername(): string {
 export async function createTestUser(): Promise<TestUser> {
   const admin = createAdminClient();
   const username = randomUsername();
-  const password = randomBytes(18).toString("base64url"); // 24 characters
+  // 24 random characters, plus a fixed "aA1!" tail. The tail guarantees a
+  // lowercase letter, an uppercase letter, a digit and a symbol, so the
+  // password is accepted even if the Supabase project's Auth setting
+  // "Password requirements" demands all four (random text alone only
+  // sometimes contains every kind).
+  const password = `${randomBytes(18).toString("base64url")}aA1!`;
 
   const { data: created, error: createError } =
     await admin.auth.admin.createUser({
