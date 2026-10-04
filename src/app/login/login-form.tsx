@@ -71,7 +71,7 @@ export default function LoginForm() {
     if (error || !data.session) {
       // The visitor only sees a friendly message; the machine-readable code
       // (never the password) goes to the browser console to help debugging.
-      console.error("Auth failed:", error?.code ?? "no_session", error?.status);
+      console.warn("Auth failed:", error?.code ?? "no_session", error?.status);
       setErrorMessage(authErrorMessage(error));
       setSubmitting(false);
       return;
