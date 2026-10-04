@@ -23,4 +23,9 @@ npm run dev
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript check |
 | `npm test` | Unit tests (Vitest) |
+| `npm run test:integration` | Integration tests against the real Supabase test project (needs `.env.test`, see below) |
 | `npm run build` | Production build |
+
+### Integration tests
+
+These use a separate Supabase project made only for testing. Copy `.env.test.example` to `.env.test` (git-ignored) and fill in `SUPABASE_TEST_URL`, `SUPABASE_TEST_ANON_KEY` and `SUPABASE_TEST_SERVICE_ROLE_KEY`. The service-role key is used only by the test code to create and delete throwaway Users; never put it in app code or on Vercel. In CI the same three names are GitHub repository secrets.

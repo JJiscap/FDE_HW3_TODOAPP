@@ -12,6 +12,7 @@ coverage/
 # secrets: never commit real env files (the template is allowed)
 .env*
 !.env.example
+!.env.test.example
 
 # local databases and OS noise
 *.db
