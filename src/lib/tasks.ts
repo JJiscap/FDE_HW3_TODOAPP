@@ -88,3 +88,39 @@ export async function createTask(
   }
   return { ok: true, task: toTask(data as TaskRow) };
 }
+
+export type TaskChangeResult =
+  | { ok: true; task: Task }
+  | { ok: false; reason: "not_found" };
+
+export type DeleteTaskResult = { ok: true } | { ok: false; reason: "not_found" };
+
+/**
+ * Marks a Task Completed or reopens it. `not_found` when no row was changed:
+ * the id does not exist, belongs to another User (Row Level Security hides it,
+ * so it looks exactly like a missing id), or is not a valid id at all. Only
+ * `completed` can be changed; the title never is. Other failures throw.
+ */
+export async function setCompleted(
+  client: SupabaseClient,
+  id: string,
+  completed: boolean,
+): Promise<TaskChangeResult> {
+  void client;
+  void id;
+  void completed;
+  throw new Error("setCompleted: not implemented yet");
+}
+
+/**
+ * Permanently deletes a Task. `not_found` when no row was deleted (same cases
+ * as setCompleted). Other failures throw.
+ */
+export async function deleteTask(
+  client: SupabaseClient,
+  id: string,
+): Promise<DeleteTaskResult> {
+  void client;
+  void id;
+  throw new Error("deleteTask: not implemented yet");
+}
