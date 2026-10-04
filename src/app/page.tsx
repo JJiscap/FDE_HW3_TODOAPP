@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { listTasks, type Task } from "@/lib/tasks";
 import { logout } from "./actions";
 import AddTaskForm from "./add-task-form";
+import TaskItem from "./task-item";
 
 // A server component: it runs on the server for each request, so it can read
 // the session cookies and ask the database who the signed-in User is.
@@ -80,17 +81,9 @@ export default async function Home() {
         ) : (
           <ul className="flex flex-col divide-y divide-zinc-200 rounded-lg border border-zinc-200">
             {tasks.map((task) => (
-              <li
-                key={task.id}
-                // break-words so a long title wraps instead of widening the
-                // page. A Completed Task is struck through (the controls to
-                // complete one come in a later ticket).
-                className={`px-3 py-2 break-words ${
-                  task.completed ? "text-zinc-500 line-through" : ""
-                }`}
-              >
-                {task.title}
-              </li>
+              // Each row is a client component with the controls to complete,
+              // reopen and delete the Task.
+              <TaskItem key={task.id} task={task} />
             ))}
           </ul>
         )}
