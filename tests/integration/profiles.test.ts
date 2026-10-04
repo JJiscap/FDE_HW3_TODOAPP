@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { usernameToLoginEmail } from "@/lib/validation";
 import { createAdminClient, createAnonClient } from "./helpers/clients";
@@ -33,13 +32,14 @@ async function userExists(email: string): Promise<boolean> {
   return false;
 }
 
-// Usernames the database must refuse, with the reason each is wrong.
+// Login-email local parts (the part before the "@") the database must refuse,
+// with the reason each is wrong. The Username is derived from the email, so
+// these are Usernames the app would never send but an attacker could try.
 const MALFORMED_USERNAMES = [
   ["too short", "ab"],
   ["too long (21 characters)", "a".repeat(21)],
-  ["uppercase letters", "Alice_Test"],
   ["a space", "bad name"],
-  ["an @ sign", "bad@name"],
+  ["an extra @ sign", "bad@name"],
   ["a symbol", "bad-name!"],
   ["empty", ""],
 ] as const;
@@ -91,23 +91,21 @@ describe("a Profile is created automatically at sign-up", () => {
   });
 });
 
-describe("the database rejects a malformed Username, even when the forms are bypassed", () => {
-  // The admin client skips the app's validation, so this sends the crafted
-  // metadata straight to the Auth service, like an attacker calling the API
-  // directly would.
+describe("the database rejects a bad Username or email, even when the forms are bypassed", () => {
+  // The admin client skips the app's validation, so this sends crafted emails
+  // straight to the Auth service, like an attacker calling the API directly.
   it.each(MALFORMED_USERNAMES)(
     "refuses a Username that is %s, leaving no User and no Profile",
     async (_reason, badUsername) => {
       const admin = createAdminClient();
-      // usernameToLoginEmail would (rightly) refuse a bad name, so build a
-      // valid-looking, unique email by hand.
-      const email = `bad_${randomBytes(6).toString("hex")}@todoapp.invalid`;
+      // usernameToLoginEmail would (rightly) refuse a bad name, so build the
+      // email by hand.
+      const email = `${badUsername}@todoapp.invalid`;
 
       const { data, error } = await admin.auth.admin.createUser({
         email,
         password: randomPassword(),
         email_confirm: true,
-        user_metadata: { username: badUsername },
       });
       // If the database wrongly allowed it, make sure the User is cleaned up.
       if (data?.user) trackTestUser(data.user.id);
@@ -119,9 +117,9 @@ describe("the database rejects a malformed Username, even when the forms are byp
     },
   );
 
-  it("refuses a sign-up with no Username in the metadata", async () => {
+  it("refuses a login email on any other domain (no real addresses)", async () => {
     const admin = createAdminClient();
-    const email = `bad_${randomBytes(6).toString("hex")}@todoapp.invalid`;
+    const email = `${randomUsername()}@example.com`;
 
     const { data, error } = await admin.auth.admin.createUser({
       email,
@@ -135,13 +133,12 @@ describe("the database rejects a malformed Username, even when the forms are byp
   });
 
   it("refuses a malformed Username sent through the public sign-up call", async () => {
-    const email = `bad_${randomBytes(6).toString("hex")}@todoapp.invalid`;
+    const email = "ab@todoapp.invalid"; // 2 characters: too short
     const client = createAnonClient();
 
     const { data, error } = await client.auth.signUp({
       email,
       password: randomPassword(),
-      options: { data: { username: "Not Valid!" } },
     });
     if (data.user) trackTestUser(data.user.id);
 
@@ -150,22 +147,45 @@ describe("the database rejects a malformed Username, even when the forms are byp
     expect(await userExists(email)).toBe(false);
   });
 
-  it("refuses a second User with a Username that is already taken", async () => {
-    const existing = await createTestUser();
-    const admin = createAdminClient();
-    // A different email, so only the Username clashes.
-    const email = `dup_${randomBytes(6).toString("hex")}@todoapp.invalid`;
+  it("ignores a Username in the sign-up metadata, so nobody can squat another's Username", async () => {
+    const victim = randomUsername(); // the Username the attacker wants
+    const attacker = randomUsername(); // the email they actually register
+    const client = createAnonClient();
 
-    const { data, error } = await admin.auth.admin.createUser({
-      email,
+    const { data, error } = await client.auth.signUp({
+      email: usernameToLoginEmail(attacker),
       password: randomPassword(),
-      email_confirm: true,
-      user_metadata: { username: existing.username },
+      options: { data: { username: victim } },
     });
-    if (data?.user) trackTestUser(data.user.id);
+    if (data.user) trackTestUser(data.user.id);
+    expect(error).toBeNull();
+
+    // The Profile carries the Username from the email, not from the metadata.
+    const { data: profiles } = await client.from("profiles").select("username");
+    expect(profiles).toEqual([{ username: attacker }]);
+
+    // So the real owner can still take the Username they wanted.
+    const owner = createAnonClient();
+    const { data: ownerData, error: ownerError } = await owner.auth.signUp({
+      email: usernameToLoginEmail(victim),
+      password: randomPassword(),
+    });
+    if (ownerData.user) trackTestUser(ownerData.user.id);
+    expect(ownerError).toBeNull();
+  });
+
+  it("refuses a second sign-up for a Username that is already taken", async () => {
+    const existing = await createTestUser();
+    const client = createAnonClient();
+
+    // The same Username means the same login email, which Auth already holds.
+    const { data, error } = await client.auth.signUp({
+      email: usernameToLoginEmail(existing.username),
+      password: randomPassword(),
+    });
+    if (data.user && data.user.id !== existing.id) trackTestUser(data.user.id);
 
     expect(error).not.toBeNull();
-    expect(await userExists(email)).toBe(false);
   });
 });
 

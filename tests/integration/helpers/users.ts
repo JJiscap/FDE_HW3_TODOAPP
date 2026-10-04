@@ -50,10 +50,9 @@ export function trackTestUser(id: string): void {
  *
  * The login email is derived from the Username, as the app does (see
  * docs/adr/0001). `email_confirm: true` marks it verified so sign-in works
- * straight away, with no email being sent. The Username is also stored in
- * `user_metadata`, which is what the Profile trigger reads to create the
- * User's Profile (supabase/migrations/0001_profiles.sql; this helper works
- * without the migration too, but then the User has no Profile).
+ * straight away, with no email being sent. The Profile trigger derives the
+ * Username from that email (supabase/migrations/0001_profiles.sql; this helper
+ * works without the migration too, but then the User has no Profile).
  */
 export async function createTestUser(): Promise<TestUser> {
   const admin = createAdminClient();
@@ -66,7 +65,6 @@ export async function createTestUser(): Promise<TestUser> {
       email,
       password,
       email_confirm: true,
-      user_metadata: { username },
     });
   if (createError || !created.user) {
     throw new Error(

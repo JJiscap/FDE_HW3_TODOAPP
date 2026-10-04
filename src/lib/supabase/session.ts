@@ -37,7 +37,7 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, headers) {
           // Write the refreshed cookies onto the request, then build a new
           // response from that request and write them onto it as well.
           cookiesToSet.forEach(({ name, value }) =>
@@ -46,6 +46,11 @@ export async function updateSession(request: NextRequest) {
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options),
+          );
+          // Headers such as "Cache-Control: private, no-store" stop a CDN from
+          // caching a response that carries someone's fresh session cookies.
+          Object.entries(headers).forEach(([key, value]) =>
+            response.headers.set(key, value),
           );
         },
       },
@@ -86,5 +91,8 @@ function redirectTo(
   url.search = "";
   const redirect = NextResponse.redirect(url);
   refreshed.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+  // Keep the no-store header too, for the same reason as in setAll above.
+  const cacheControl = refreshed.headers.get("Cache-Control");
+  if (cacheControl) redirect.headers.set("Cache-Control", cacheControl);
   return redirect;
 }

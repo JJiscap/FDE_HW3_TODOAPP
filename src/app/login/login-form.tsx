@@ -59,8 +59,7 @@ export default function LoginForm() {
       ? await supabase.auth.signUp({
           email,
           password: passwordResult.value,
-          // The database trigger reads this to create the Profile.
-          options: { data: { username: usernameResult.value } },
+          // No Username is sent: the database trigger takes it from the email.
         })
       : await supabase.auth.signInWithPassword({
           email,

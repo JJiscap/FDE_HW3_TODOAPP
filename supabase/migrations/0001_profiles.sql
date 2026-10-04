@@ -44,8 +44,16 @@ create table if not exists public.profiles (
 -- 2. THE TRIGGER THAT CREATES A PROFILE AT SIGN-UP --------------------------
 
 -- A "trigger function" is code the database runs automatically when
--- something happens. This one runs for every new row in auth.users and copies
--- the Username from the sign-up data into a new Profile.
+-- something happens. This one runs for every new row in auth.users and creates
+-- the matching Profile.
+--
+-- The Username is taken from the login EMAIL (<username>@todoapp.invalid, see
+-- docs/adr/0001), never from the extra sign-up data. Anyone can call the Auth
+-- API directly and send whatever data they like, but the email is also what
+-- they log in with, so deriving the Username from it means nobody can register
+-- one email while claiming a different Username (which would lock the real
+-- owner of that Username out). Emails on any other domain are refused, so a
+-- real address can never end up in the app.
 -- "create or replace" updates the function if it already exists.
 create or replace function public.handle_new_user()
 returns trigger
@@ -60,12 +68,24 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- "new" is the auth.users row that was just inserted. raw_user_meta_data is
-  -- the extra JSON sent at sign-up: signUp({ options: { data: { username } } }).
-  -- "->>" reads one key from that JSON as text. If it is missing, the value is
-  -- null and the "not null" rule makes the insert (and so the sign-up) fail.
+  -- "new" is the auth.users row that was just inserted. Raising an exception
+  -- here cancels the whole sign-up (the User row is rolled back too).
+  -- The email must be exactly <username>@todoapp.invalid. Checking the WHOLE
+  -- address with one pattern ("~" = matches a regular expression) matters: a
+  -- looser "ends with @todoapp.invalid" test would let "bob@x@todoapp.invalid"
+  -- through and the split below would then hand out the Username "bob".
+  -- A missing email (null) is refused too. The Auth service already lowercases
+  -- emails; lower() is just a belt-and-braces guard.
+  if new.email is null
+     or lower(new.email) !~ '^[a-z0-9_]{3,20}@todoapp\.invalid$' then
+    raise exception 'Sign-ups must use a <username>@todoapp.invalid login email';
+  end if;
+
+  -- split_part(text, '@', 1) is everything before the "@": the Username. The
+  -- CHECK constraint on profiles re-checks the format as the last line of
+  -- defence.
   insert into public.profiles (id, username)
-  values (new.id, new.raw_user_meta_data ->> 'username');
+  values (new.id, split_part(lower(new.email), '@', 1));
 
   -- A trigger that runs "after insert" must still return the row.
   return new;
