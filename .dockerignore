@@ -1,0 +1,33 @@
+# Files Docker must NOT copy into the image ("COPY . ." in the Dockerfile
+# respects this list). Two reasons to leave things out: keep the image small
+# and fast to build, and, most important, keep secrets out of it.
+
+# Secrets: real env files must never end up inside an image. (The build gets
+# the two public Supabase values as build arguments instead, see compose.yaml.)
+.env*
+
+# Dependencies are installed fresh inside the image (stage 1 of the Dockerfile).
+node_modules
+
+# Build output and caches from your own machine.
+.next
+out
+build
+coverage
+*.tsbuildinfo
+
+# Version control history and tooling that the app does not need to run.
+.git
+.github
+.claude
+.scratch
+.vercel
+
+# Tests and docs are not part of the running app.
+tests
+docs
+*.md
+
+# Operating-system noise.
+.DS_Store
+npm-debug.log*

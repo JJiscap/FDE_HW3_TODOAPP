@@ -1,0 +1,47 @@
+# Docker Compose describes how to build and run the app's container(s) with ONE
+# command, so nobody has to remember long "docker build" / "docker run" flags:
+#
+#   docker compose up --build      build the image and start the app
+#   docker compose down            stop it and remove the container
+#
+# This project has a single container because it is a single Next.js app (the
+# pages and the API live together, docs/adr/0003). Vercel does not use this
+# file: it is for running the app locally and in CI.
+#
+# Variables like ${NEXT_PUBLIC_SUPABASE_URL} are filled in from a file named
+# ".env" next to this file (Compose reads it automatically). That file is
+# git-ignored, so nothing secret is committed. Copy .env.example to .env and
+# fill in the two values (Supabase project URL and anon key).
+
+services:
+  # "app" is just this service's name; you can see it in "docker compose ps".
+  app:
+    build:
+      # Build from the Dockerfile in this folder.
+      context: .
+      # Build arguments: the values the Dockerfile's ARG lines receive. Next.js
+      # bakes NEXT_PUBLIC_* values into the compiled app at BUILD time, so they
+      # must be passed here, not only when the container starts.
+      # "${VAR:?message}" stops with that message if the variable is missing,
+      # instead of quietly building an app that cannot reach Supabase.
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?Set NEXT_PUBLIC_SUPABASE_URL in .env (copy .env.example)}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?Set NEXT_PUBLIC_SUPABASE_ANON_KEY in .env (copy .env.example)}
+    # "HOST:CONTAINER". Open http://localhost:3000 in your browser. To use a
+    # different port on your computer, change the first number (for example
+    # "3001:3000" gives http://localhost:3001).
+    ports:
+      - "3000:3000"
+    # Restart the container if the app crashes, but not if you stopped it
+    # yourself with "docker compose down" or "stop".
+    restart: unless-stopped
+    # Docker runs this command inside the container every few seconds to ask
+    # "is the app healthy?". Alpine Linux ships "wget", so no extra tool is
+    # needed. "docker compose ps" then shows "healthy" once the login page
+    # answers. CI uses this to know when the app is ready.
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:3000/login"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s

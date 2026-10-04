@@ -96,3 +96,51 @@ jobs:
           SUPABASE_TEST_URL: ${{ secrets.SUPABASE_TEST_URL }}
           SUPABASE_TEST_ANON_KEY: ${{ secrets.SUPABASE_TEST_ANON_KEY }}
           SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_ROLE_KEY }}
+
+  # A third job: can the app be built and run as a Docker container? This
+  # catches problems the other jobs cannot see (a broken Dockerfile, a missing
+  # file in the image, a server that does not start). It needs no secrets, so
+  # it also runs for pull requests from forks.
+  docker:
+    name: Docker image builds and starts
+    runs-on: ubuntu-latest
+    # If something hangs (for example the container never becomes healthy),
+    # stop after 15 minutes instead of waiting for GitHub's 6-hour limit.
+    timeout-minutes: 15
+    env:
+      # compose.yaml needs these two values to build. They are PLACEHOLDERS, not
+      # real credentials: this job only checks that the app starts and serves
+      # the login page. It never talks to Supabase.
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+    steps:
+      # 1. Download the repo's code onto the machine.
+      - uses: actions/checkout@v4
+
+      # 2. Is compose.yaml valid? (--quiet prints nothing unless it is broken.)
+      - name: Validate compose.yaml
+        run: docker compose config --quiet
+
+      # 3. Build the image and start the container. "--wait" blocks until the
+      #    container's health check (in compose.yaml) reports healthy, and
+      #    fails the step if it never does.
+      - name: Build the image and start the container
+        run: docker compose up --build -d --wait
+
+      # 4. Smoke check: ask the running app for its login page, like a visitor
+      #    would. "curl -f" fails on an HTTP error; "grep" checks the page
+      #    really is the login form.
+      - name: Smoke check the login page
+        run: |
+          curl -fsS http://localhost:3000/login | grep -q "Log in"
+
+      # 5. Only if something above failed: show the container's own log, which
+      #    usually names the cause.
+      - name: Show container logs (on failure)
+        if: failure()
+        run: docker compose logs app
+
+      # 6. Always: stop and remove the container, even after a failure.
+      - name: Stop the container
+        if: always()
+        run: docker compose down
