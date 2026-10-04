@@ -89,6 +89,20 @@ export async function createTask(
   return { ok: true, task: toTask(data as TaskRow) };
 }
 
+// The shape of a Task id: 8-4-4-4-12 hex digits, either case. `$` would also
+// match before a trailing newline, so the end is checked with a lookahead.
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\s\S])/i;
+
+/**
+ * Whether `id` looks like a Task id (a UUID). An id that does not can never
+ * match a Task, and must not be sent to the database, which would answer with
+ * an error instead of "no rows".
+ */
+export function isTaskId(id: string): boolean {
+  return UUID_PATTERN.test(id);
+}
+
 export type TaskChangeResult =
   | { ok: true; task: Task }
   | { ok: false; reason: "not_found" };
@@ -106,10 +120,24 @@ export async function setCompleted(
   id: string,
   completed: boolean,
 ): Promise<TaskChangeResult> {
-  void client;
-  void id;
-  void completed;
-  throw new Error("setCompleted: not implemented yet");
+  // An id that is not a UUID cannot match any Task. Answer without asking the
+  // database: Postgres would raise an error (22P02) instead of finding nothing.
+  if (!isTaskId(id)) return { ok: false, reason: "not_found" };
+
+  // Only `completed` is sent (the database also refuses any other column).
+  // No filter on user_id: Row Level Security hides other Users' rows, so
+  // they simply match nothing. The changed row is selected back so an empty
+  // result means "nothing was changed".
+  const { data, error } = await client
+    .from("tasks")
+    .update({ completed })
+    .eq("id", id)
+    .select(TASK_COLUMNS);
+
+  if (error) throw new Error(`Could not update the Task: ${error.message}`);
+  const rows = data as TaskRow[];
+  if (rows.length === 0) return { ok: false, reason: "not_found" };
+  return { ok: true, task: toTask(rows[0]) };
 }
 
 /**
@@ -120,7 +148,19 @@ export async function deleteTask(
   client: SupabaseClient,
   id: string,
 ): Promise<DeleteTaskResult> {
-  void client;
-  void id;
-  throw new Error("deleteTask: not implemented yet");
+  if (!isTaskId(id)) return { ok: false, reason: "not_found" };
+
+  // The deleted row's id is selected back only so rows can be counted: zero
+  // means the Task is missing or not this User's (Row Level Security hides it).
+  const { data, error } = await client
+    .from("tasks")
+    .delete()
+    .eq("id", id)
+    .select("id");
+
+  if (error) throw new Error(`Could not delete the Task: ${error.message}`);
+  if ((data as { id: string }[]).length === 0) {
+    return { ok: false, reason: "not_found" };
+  }
+  return { ok: true };
 }
