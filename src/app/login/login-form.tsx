@@ -69,6 +69,9 @@ export default function LoginForm() {
     // Sign-up logs the User in straight away, so a missing session means
     // something unexpected happened even though there was no error.
     if (error || !data.session) {
+      // The visitor only sees a friendly message; the machine-readable code
+      // (never the password) goes to the browser console to help debugging.
+      console.error("Auth failed:", error?.code ?? "no_session", error?.status);
       setErrorMessage(authErrorMessage(error));
       setSubmitting(false);
       return;

@@ -8,6 +8,8 @@
 
 export const USERNAME_TAKEN_MESSAGE = "Username already taken";
 export const INVALID_CREDENTIALS_MESSAGE = "Invalid username or password";
+export const WEAK_PASSWORD_MESSAGE =
+  "That password is too weak. Try a longer one with a mix of letters, numbers and symbols.";
 export const GENERIC_AUTH_MESSAGE = "Something went wrong. Please try again.";
 
 /** The few fields of a Supabase `AuthError` we look at. */
@@ -40,6 +42,9 @@ export function authErrorMessage(error: unknown): string {
   if (error.code === "user_already_exists" || error.code === "email_exists") {
     return USERNAME_TAKEN_MESSAGE;
   }
+  // The Auth service has its own password rules (a Supabase dashboard setting)
+  // on top of ours. Tell the visitor what to fix instead of a vague error.
+  if (error.code === "weak_password") return WEAK_PASSWORD_MESSAGE;
   if (error.code === "invalid_credentials") {
     return INVALID_CREDENTIALS_MESSAGE;
   }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GENERIC_AUTH_MESSAGE,
+  WEAK_PASSWORD_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
   USERNAME_TAKEN_MESSAGE,
   authErrorMessage,
@@ -50,5 +51,13 @@ describe("authErrorMessage", () => {
     expect(authErrorMessage(null)).toBe(GENERIC_AUTH_MESSAGE);
     expect(authErrorMessage(undefined)).toBe(GENERIC_AUTH_MESSAGE);
     expect(authErrorMessage("boom")).toBe(GENERIC_AUTH_MESSAGE);
+  });
+
+  it("tells the visitor when the Auth service finds the password too weak", () => {
+    // Supabase can enforce its own, stricter password rules (a dashboard
+    // setting). Without this the visitor would only see a generic error.
+    expect(authErrorMessage({ code: "weak_password", status: 422 })).toBe(
+      WEAK_PASSWORD_MESSAGE,
+    );
   });
 });
