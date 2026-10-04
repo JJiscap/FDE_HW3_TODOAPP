@@ -51,3 +51,48 @@ jobs:
         run: npm test
       - name: Build (can the app be compiled for production?)
         run: npm run build
+
+  # A second, separate job. It runs at the same time as "checks" above, and
+  # shows up as its own line on the PR page, so you can tell at a glance which
+  # one failed.
+  integration:
+    name: Integration tests (real Supabase test project)
+    # Only run when the code is trusted to read our secrets:
+    #   - pushes to main: always fine
+    #   - pull requests: only when the branch lives in THIS repository.
+    #     GitHub deliberately hides secrets from pull requests opened from
+    #     forks (copies of the repo owned by other people), so the job would
+    #     fail there. For those it is skipped instead.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Download the repo's code onto the machine.
+      - uses: actions/checkout@v4
+
+      # 2. Install Node (version from .nvmrc) and reuse cached packages.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # 3. Install dependencies exactly as pinned in package-lock.json.
+      - run: npm ci
+
+      # 4. Run the integration tests. These talk to a REAL Supabase project
+      #    that exists only for testing (never the demo project). The three
+      #    values below are GitHub "secrets" (Settings > Secrets and variables
+      #    > Actions): GitHub keeps them hidden and masks them in the logs.
+      #    The names on the left are what the test code reads; the names after
+      #    "secrets." must match the secrets you created.
+      #
+      #    If this step fails with a connection or login error and nothing in
+      #    the code changed, the likely cause is that the free-tier Supabase
+      #    test project was PAUSED. Supabase pauses free projects after about
+      #    a week without activity. Fix: open the Supabase dashboard, click
+      #    "Restore project" on the test project, then re-run this job.
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          SUPABASE_TEST_URL: ${{ secrets.SUPABASE_TEST_URL }}
+          SUPABASE_TEST_ANON_KEY: ${{ secrets.SUPABASE_TEST_ANON_KEY }}
+          SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_ROLE_KEY }}
