@@ -1,5 +1,8 @@
 export const USERNAME_MIN_LENGTH = 3;
 export const USERNAME_MAX_LENGTH = 20;
+export const PASSWORD_MIN_LENGTH = 8;
+export const TASK_TITLE_MIN_LENGTH = 1;
+export const TASK_TITLE_MAX_LENGTH = 200;
 
 const USERNAME_CHARACTERS = /^[a-z0-9_]*$/;
 
@@ -23,6 +26,37 @@ function length(text: string): number {
 
 function fieldResult(value: string, rules: Rule[]): FieldResult {
   return { value, rules, valid: rules.every((rule) => rule.met) };
+}
+
+/** Passwords are returned exactly as typed: no trimming, no case change. */
+export function validatePassword(raw: string): FieldResult {
+  return fieldResult(raw, [
+    {
+      id: "min-length",
+      message: "At least 8 characters",
+      met: length(raw) >= PASSWORD_MIN_LENGTH,
+    },
+  ]);
+}
+
+export type TaskTitleResult = FieldResult & {
+  /** Code points used by the trimmed title (for a character counter). */
+  length: number;
+  /** Code points left before the limit; negative once over it. */
+  remaining: number;
+};
+
+export function validateTaskTitle(raw: string): TaskTitleResult {
+  const value = raw.trim();
+  const size = length(value);
+  return {
+    ...fieldResult(value, [
+      { id: "not-empty", message: "Title can't be empty", met: size >= TASK_TITLE_MIN_LENGTH },
+      { id: "max-length", message: "200 characters maximum", met: size <= TASK_TITLE_MAX_LENGTH },
+    ]),
+    length: size,
+    remaining: TASK_TITLE_MAX_LENGTH - size,
+  };
 }
 
 export function validateUsername(raw: string): FieldResult {
